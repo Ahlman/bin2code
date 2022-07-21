@@ -9,37 +9,45 @@ constexpr const char NewLine = '\n';
 constexpr const char *Indent = "    ";
 constexpr uint32_t BytesPerLine = 32;
 
-int WriteFile(const std::string &inputFilePath, const std::string &outputFilePath);
+struct GenerateFileOptions
+{
+    std::string InputFilePath;
+    std::string OutputFilePath;
+};
+
+int GenerateFile(const GenerateFileOptions &options);
 
 int main(int argc, char **argv)
 {
-    if (argc < 2)
+    if (argc < 3)
     {
         std::cout << "Usage:" << NewLine;
-        std::cout << "bin2code <file> [outputFile]" << NewLine;
+        std::cout << "bin2code <input-file> <output-file>" << NewLine;
         return EXIT_FAILURE;
     }
 
-    const std::string inputFilePath = argv[1];
-    const std::string outputFilePath = argc == 2 ? inputFilePath + ".hxx" : std::string(argv[2]);
+    GenerateFileOptions options {
+        .InputFilePath = argv[1],
+        .OutputFilePath = argv[2],
+    };
 
-    return WriteFile(inputFilePath, outputFilePath);
+    return GenerateFile(options);
 }
 
-int WriteFile(const std::string &inputFilePath, const std::string &outputFilePath)
+int GenerateFile(const GenerateFileOptions &options)
 {
-    std::ifstream inputFile(inputFilePath, std::ios::binary | std::ios::ate);
-    std::ofstream outputFile(outputFilePath, std::ios::binary | std::ios::trunc);
+    std::ifstream inputFile(options.InputFilePath, std::ios::binary | std::ios::ate);
+    std::ofstream outputFile(options.OutputFilePath, std::ios::binary | std::ios::trunc);
 
     if (!inputFile.is_open())
     {
-        std::cout << "Failed to open input file: " << inputFilePath << NewLine;
+        std::cout << "Failed to open input file: " << options.InputFilePath << NewLine;
         return EXIT_FAILURE;
     }
 
     if (!outputFile.is_open())
     {
-        std::cout << "Failed to open output file: " << outputFilePath << NewLine;
+        std::cout << "Failed to open output file: " << options.OutputFilePath << NewLine;
         return EXIT_FAILURE;
     }
 
@@ -57,7 +65,7 @@ int WriteFile(const std::string &inputFilePath, const std::string &outputFilePat
     outputFile << "#include <cstdint>" << NewLine;
     outputFile << NewLine;
 
-    const auto inputFileSystemPathFilename = std::filesystem::path(inputFilePath).filename().string();
+    const auto inputFileSystemPathFilename = std::filesystem::path(options.InputFilePath).filename().string();
     const auto outputVariableName = inputFileSystemPathFilename.substr(0, inputFileSystemPathFilename.find_first_of('.'));
 
     outputFile << "// Binary content of " << inputFileSystemPathFilename << NewLine;
