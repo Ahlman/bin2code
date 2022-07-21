@@ -7,15 +7,27 @@
 
 constexpr const char NewLine = '\n';
 constexpr const char *Indent = "    ";
-constexpr uint32_t BytesPerLine = 32;
+
+enum class OutputDataType
+{
+    UInt8,
+    UInt32,
+};
 
 struct GenerateFileOptions
 {
     std::string InputFilePath;
     std::string OutputFilePath;
+    std::string OutputVariableName;
+    OutputDataType OutputType;
 };
 
 int GenerateFile(const GenerateFileOptions &options);
+
+bool ExistsArg(char **begin, char **end, const std::string &option)
+{
+    return std::find(begin, end, option) != end;
+}
 
 int main(int argc, char **argv)
 {
@@ -26,13 +38,23 @@ int main(int argc, char **argv)
         return EXIT_FAILURE;
     }
 
-    GenerateFileOptions options {
+    const auto inputFileSystemPathFilename = std::filesystem::path(argv[1]).filename().string();
+
+    const auto outputType = ExistsArg(&argv[3], &argv[argc], "-u32") ? OutputDataType::UInt32 : OutputDataType::UInt8;
+
+    const GenerateFileOptions options {
         .InputFilePath = argv[1],
         .OutputFilePath = argv[2],
+        .OutputVariableName = inputFileSystemPathFilename.substr(0, inputFileSystemPathFilename.find_first_of('.')),
+        .OutputType = outputType,
     };
 
     return GenerateFile(options);
 }
+
+int WriteUInt8Content(const GenerateFileOptions &options, std::size_t numBytes, std::ifstream &inputFile, std::ofstream &outputFile);
+
+int WriteUInt32Content(const GenerateFileOptions &options, std::size_t numBytes, std::ifstream &inputFile, std::ofstream &outputFile);
 
 int GenerateFile(const GenerateFileOptions &options)
 {
@@ -52,7 +74,7 @@ int GenerateFile(const GenerateFileOptions &options)
     }
 
     const auto fileSize = inputFile.tellg();
-    const auto fileSizeInBytes = static_cast<uint64_t>(fileSize);
+    const auto fileSizeInBytes = static_cast<std::size_t>(fileSize);
 
     inputFile.seekg(0);
 
@@ -65,12 +87,27 @@ int GenerateFile(const GenerateFileOptions &options)
     outputFile << "#include <cstdint>" << NewLine;
     outputFile << NewLine;
 
-    const auto inputFileSystemPathFilename = std::filesystem::path(options.InputFilePath).filename().string();
-    const auto outputVariableName = inputFileSystemPathFilename.substr(0, inputFileSystemPathFilename.find_first_of('.'));
+    outputFile << "// Binary content of " << std::filesystem::path(options.InputFilePath).filename().string() << NewLine;
 
-    outputFile << "// Binary content of " << inputFileSystemPathFilename << NewLine;
+    switch (options.OutputType)
+    {
+        case OutputDataType::UInt8:
+            return WriteUInt8Content(options, fileSizeInBytes, inputFile, outputFile);
 
-    outputFile << "constexpr std::array<const uint8_t, " << fileSizeInBytes << "> " << outputVariableName << NewLine;
+        case OutputDataType::UInt32:
+            return WriteUInt32Content(options, fileSizeInBytes, inputFile, outputFile);
+    }
+
+    std::cout << "Invalid output type" << NewLine;
+
+    return EXIT_FAILURE;
+}
+
+int WriteUInt8Content(const GenerateFileOptions &options, std::size_t numBytes, std::ifstream &inputFile, std::ofstream &outputFile)
+{
+    constexpr uint32_t ValuesPerLine = 32;
+
+    outputFile << "constexpr std::array<const uint8_t, " << numBytes << "> " << options.OutputVariableName << NewLine;
     outputFile << "{";
 
     uint64_t index = 0;
@@ -79,13 +116,48 @@ int GenerateFile(const GenerateFileOptions &options)
         const auto byte = inputFile.get();
         if (inputFile.eof()) break;
 
-        if ((index++ % BytesPerLine) == 0)
+        if ((index++ % ValuesPerLine) == 0)
         {
             outputFile << NewLine
                        << Indent;
         }
 
-        outputFile << "0x" << std::hex << std::setfill('0') << std::setw(2) << static_cast<uint32_t>(byte) << ((index % BytesPerLine) == 0 ? "," : ", ");
+        outputFile << "0x" << std::hex << std::setfill('0') << std::setw(2) << static_cast<uint32_t>(byte) << ((index % ValuesPerLine) == 0 ? "," : ", ");
+    }
+
+    outputFile << NewLine
+               << "};" << NewLine;
+
+    return EXIT_SUCCESS;
+}
+
+int WriteUInt32Content(const GenerateFileOptions &options, std::size_t numBytes, std::ifstream &inputFile, std::ofstream &outputFile)
+{
+    constexpr uint32_t ValuesPerLine = 8;
+
+    const auto numValues = (numBytes / sizeof(uint32_t)) + ((numBytes % sizeof(uint32_t)) > 0 ? 1 : 0);
+
+    outputFile << "constexpr std::array<const uint32_t, " << numValues << "> " << options.OutputVariableName << NewLine;
+    outputFile << "{";
+
+    uint64_t index = 0;
+    while (!inputFile.eof())
+    {
+        uint32_t value;
+        inputFile.read(
+            reinterpret_cast<char *>(&value),
+            sizeof(uint32_t)
+        );
+
+        if (inputFile.gcount() == 0) break;
+
+        if ((index++ % ValuesPerLine) == 0)
+        {
+            outputFile << NewLine
+                       << Indent;
+        }
+
+        outputFile << "0x" << std::hex << std::setfill('0') << std::setw(8) << value << ((index % ValuesPerLine) == 0 ? "," : ", ");
     }
 
     outputFile << NewLine
