@@ -125,7 +125,7 @@ int WriteUInt8Content(const GenerateFileOptions &options, std::size_t numBytes, 
 {
     constexpr uint32_t ValuesPerLine = 32;
 
-    outputFile << "constexpr std::array<const uint8_t, " << numBytes << "> " << options.OutputVariableName << NewLine;
+    outputFile << "inline constexpr std::array<const uint8_t, " << numBytes << "> " << options.OutputVariableName << NewLine;
     outputFile << "{";
 
     uint64_t index = 0;
@@ -155,7 +155,7 @@ int WriteUInt32Content(const GenerateFileOptions &options, std::size_t numBytes,
 
     const auto numValues = (numBytes / sizeof(uint32_t)) + ((numBytes % sizeof(uint32_t)) > 0 ? 1 : 0);
 
-    outputFile << "constexpr std::array<const uint32_t, " << numValues << "> " << options.OutputVariableName << NewLine;
+    outputFile << "inline constexpr std::array<const uint32_t, " << numValues << "> " << options.OutputVariableName << NewLine;
     outputFile << "{";
 
     uint64_t index = 0;
@@ -188,7 +188,7 @@ int WriteByteContent(const GenerateFileOptions &options, std::size_t numBytes, s
 {
     constexpr uint32_t ValuesPerLine = 32;
 
-    outputFile << "constexpr std::array<const std::byte, " << numBytes << "> " << options.OutputVariableName << NewLine;
+    outputFile << "inline constexpr std::array<const std::byte, " << numBytes << "> " << options.OutputVariableName << NewLine;
     outputFile << "{";
 
     uint64_t index = 0;
